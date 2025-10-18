@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RSVP — Tom & Sofia</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Lato', sans-serif; background:#fff; color:#222; }
+    .container { max-width:900px; padding:3rem 1rem; }
+    .card { border-radius:.8rem; box-shadow: 0 12px 30px rgba(0,0,0,0.06); padding:1.6rem; }
+    .lang-switch { cursor:pointer; }
+    .muted { color:#6b6b6b; }
+    .result { margin-top:1rem; }
+  </style>
+</head>
+<body>
+  <nav class="navbar bg-white">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="index.html">Tom & Sofia</a>
+      <div class="d-flex align-items-center">
+        <div class="me-3 small muted">ES / EN</div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="langSwitch">
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="card">
+      <h3 data-es="Confirmar asistencia" data-en="Confirm attendance">Confirmar asistencia</h3>
+      <p class="muted" data-es="Por favor ingresa tu nombre completo tal como figura en la lista de invitados." data-en="Please enter your full name exactly as it appears in the guest list.">Por favor ingresa tu nombre completo tal como figura en la lista de invitados.</p>
+
+      <form id="rsvpForm" class="row g-3">
+        <div class="col-12">
+          <label class="form-label" data-es="Nombre y Apellido" data-en="Full name">Nombre y Apellido</label>
+          <input type="text" id="fullname" class="form-control" placeholder="Ej: Sofia Perez" required>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label" data-es="Asistirás a:" data-en="You will attend:">Asistirás a:</label>
+          <select id="choice" class="form-select" required>
+            <option value="" disabled selected data-es="Selecciona..." data-en="Select...">Selecciona...</option>
+            <option value="ljubljana" data-es="Ljubljana, Slovenia" data-en="Ljubljana, Slovenia">Ljubljana, Slovenia</option>
+            <option value="elbobadal" data-es="El Bobadal, Argentina" data-en="El Bobadal, Argentina">El Bobadal, Argentina</option>
+            <option value="both" data-es="Ambas / Both" data-en="Both">Ambas / Both</option>
+          </select>
+        </div>
+
+        <div class="col-12 d-flex gap-2">
+          <button type="submit" class="btn btn-primary" id="submitBtn" data-es="Enviar" data-en="Send">Enviar</button>
+          <a href="index.html" class="btn btn-outline-secondary" data-es="Volver" data-en="Back">Volver</a>
+        </div>
+
+        <div id="result" class="result"></div>
+      </form>
+    </div>
+  </main>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // Language logic same as index
+    const switchEl = document.getElementById('langSwitch');
+    const initLang = localStorage.getItem('wedding_lang') || 'es';
+    switchEl.checked = (initLang === 'en');
+
+    function applyLang(lang){
+      document.documentElement.lang = lang === 'es' ? 'es' : 'en';
+      document.querySelectorAll('[data-es]').forEach(el=>{
+        el.textContent = lang === 'es' ? el.getAttribute('data-es') : el.getAttribute('data-en');
+      });
+      localStorage.setItem('wedding_lang', lang);
+    }
+
+    applyLang(initLang);
+    switchEl.addEventListener('change', ()=> applyLang(switchEl.checked ? 'en' : 'es'));
+
+    // --- RSVP submission logic ---
+    const form = document.getElementById('rsvpForm');
+    const resultDiv = document.getElementById('result');
+
+    // REPLACE THIS with your deployed Google Apps Script web app URL
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyMWlkxAundajcH2KcWceswRIwPwYhWyLdAOISHL1bvplRFqaosqwEZ71Y77sK0EXs/exec';
+
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      resultDiv.innerHTML = '';
+      const fullname = document.getElementById('fullname').value.trim();
+      const choice = document.getElementById('choice').value;
+
+      if(!fullname || !choice){
+        resultDiv.innerHTML = `<div class="alert alert-warning">Please complete the form.</div>`;
+        return;
+      }
+
+      // UI loading
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = localStorage.getItem('wedding_lang') === 'en' ? 'Sending...' : 'Enviando...';
+
+      try {
+        // POST JSON
+        const resp = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fullname, choice })
+        });
+
+        const data = await resp.json();
+
+        if(data && data.invited){
+          // success message (bilingual)
+          resultDiv.innerHTML = `<div class="alert alert-success">${ data.message }</div>`;
+        } else {
+          // not invited or error
+          resultDiv.innerHTML = `<div class="alert alert-danger">${ data && data.message ? data.message : 'Error' }</div>`;
+        }
+
+      } catch (err){
+        console.error(err);
+        resultDiv.innerHTML = `<div class="alert alert-danger">Network error. Please try again later.</div>`;
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = localStorage.getItem('wedding_lang') === 'en' ? 'Send' : 'Enviar';
+      }
+    });
+  </script>
+</body>
+</html>
